@@ -1,0 +1,9 @@
+name: goldbean
+queue: goldbean.start
+exchange:
+  name: order.start
+  type: fanout
+bindkey: goldbean.start_order.start
+consumer: xiangzhi
+workernum: 40
+url: "http://www.goldbea1.com"

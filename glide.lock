@@ -1,0 +1,91 @@
+hash: f20a08aeaecdf27d269d3b20c52c54620f197b73a217b7804f5937d480fb2099
+updated: 2018-09-03T13:59:45.552331018+08:00
+imports:
+- name: github.com/emirpasic/gods
+  version: f6c17b524822278a87e3b3bd809fec33b51f5b46
+  subpackages:
+  - containers
+  - maps
+  - maps/hashmap
+  - utils
+- name: github.com/fsnotify/fsnotify
+  version: c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9
+- name: github.com/gin-contrib/sse
+  version: 22d885f9ecc78bf4ee5d72b937e4bbcdc58e8cae
+- name: github.com/gin-gonic/gin
+  version: b869fe1415e4b9eb52f247441830d502aece2d4d
+  subpackages:
+  - binding
+  - json
+  - render
+- name: github.com/golang/protobuf
+  version: f5983d50c82d70eaa88c17080245cc871558081f
+  subpackages:
+  - proto
+- name: github.com/hashicorp/hcl
+  version: ef8a98b0bbce4a65b5aa4c368430a80ddc533168
+  subpackages:
+  - hcl/ast
+  - hcl/parser
+  - hcl/printer
+  - hcl/scanner
+  - hcl/strconv
+  - hcl/token
+  - json/parser
+  - json/scanner
+  - json/token
+- name: github.com/json-iterator/go
+  version: 1624edc4454b8682399def8740d46db5e4362ba4
+- name: github.com/magiconair/properties
+  version: c2353362d570a7bfa228149c62842019201cfb71
+- name: github.com/mattn/go-isatty
+  version: 6ca4dbf54d38eea1a992b3c722a76a5d1c4cb25c
+- name: github.com/mitchellh/mapstructure
+  version: f15292f7a699fcc1a38a80977f80a046874ba8ac
+- name: github.com/modern-go/concurrent
+  version: bacd9c7ef1dd9b15be4a9909b8ac7a4e313eec94
+- name: github.com/modern-go/reflect2
+  version: 94122c33edd36123c84d5368cfb2b69df93a0ec8
+- name: github.com/pelletier/go-toml
+  version: c2dbbc24a97911339e01bda0b8cabdbd8f13b602
+- name: github.com/satori/go.uuid
+  version: f58768cc1a7a7e77a3bd49e98cdd21419399b6a3
+- name: github.com/sirupsen/logrus
+  version: 3e01752db0189b9157070a0e1668a620f9a85da2
+- name: github.com/spf13/afero
+  version: 787d034dfe70e44075ccc060d346146ef53270ad
+  subpackages:
+  - mem
+- name: github.com/spf13/cast
+  version: 8965335b8c7107321228e3e3702cab9832751bac
+- name: github.com/spf13/jwalterweatherman
+  version: 7c0cea34c8ece3fbeb2b27ab9b59511d360fb394
+- name: github.com/spf13/pflag
+  version: 9a97c102cda95a86cec2345a6f09f55a939babf5
+- name: github.com/spf13/viper
+  version: 907c19d40d9a6c9bb55f040ff4ae45271a4754b9
+- name: github.com/streadway/amqp
+  version: 70e15c650864f4fc47f5d3c82ea117285480895d
+- name: github.com/ugorji/go
+  version: 0e8ffdb13c81bdb48fa80a963cf83f10a0f5a496
+  subpackages:
+  - codec
+- name: golang.org/x/crypto
+  version: c126467f60eb25f8f27e5a981f32a87e3965053f
+  subpackages:
+  - ssh/terminal
+- name: golang.org/x/sys
+  version: bd9dbc187b6e1dacfdd2722a87e83093c2d7bd6e
+  subpackages:
+  - unix
+  - windows
+- name: golang.org/x/text
+  version: 0605a8320aceb4207a5fb3521281e17ec2075476
+  subpackages:
+  - transform
+  - unicode/norm
+- name: gopkg.in/go-playground/validator.v8
+  version: 5f1438d3fca68893a817e4a66806cea46a9e4ebf
+- name: gopkg.in/yaml.v2
+  version: 5420a8b6744d3b0345ab293f6fcba19c978f1183
+testImports: []

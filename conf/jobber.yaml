@@ -1,0 +1,17 @@
+server:
+  runmode: debug                 # 开发模式, debug, release, test
+  addr: 127.0.0.1:9003                  # HTTP绑定端口
+  logfile:
+  logfile_maxbytes:
+  loglevel:
+  rabbitmq:
+    brokers:
+      - 127.0.0.1:5672
+      - 127.0.0.1:5673
+      - 127.0.0.1:5674
+    user: guest
+    pswd: guest
+    vhost: /
+
+include: /Users/xiangzhi/Work/Go/src/gitlab.mydadao.com/marketing/message_jobber/jobber.d/*.yaml
+

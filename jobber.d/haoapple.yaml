@@ -1,0 +1,9 @@
+name: haoapple
+queue: goldbean.end
+exchange:
+  name: order.start
+  type: fanout
+bindkey: goldbean.end_order.start
+consumer: xiangzhi
+workernum: 40
+url: "http://www.haoapple.com"
