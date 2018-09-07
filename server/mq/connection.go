@@ -51,7 +51,15 @@ func (this *connection) connect() error {
 
 	atomic.StoreInt32(&this.status, 1)
 	this.conn = conn
-	//Jobbers.StartAll()
+
+	vals := Jobbers.jobbers.Values()
+	for _, val := range vals {
+		jb := val.(*Jobber)
+		status, _ := jb.GetStatus()
+		if status == -1 {
+			Jobbers.Start(jb.name)
+		}
+	}
 
 	logrus.Info("Connect rabbitMQ server success.")
 	return nil

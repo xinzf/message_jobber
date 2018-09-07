@@ -2,7 +2,8 @@ package mq
 
 import (
 	"context"
-	"github.com/emirpasic/gods/maps/hashmap"
+	"errors"
+	"fmt"
 	"github.com/sirupsen/logrus"
 	"github.com/streadway/amqp"
 	"sync"
@@ -37,7 +38,6 @@ func NewJobber(options jobberOptions) *Jobber {
 	return &Jobber{
 		name:          options.Name,
 		options:       options,
-		workers:       hashmap.New(),
 		stopTime:      time.Now(),
 		closeNotifies: make([]chan bool, 0),
 		status:        0,
@@ -48,7 +48,6 @@ type Jobber struct {
 	name          string
 	channel       *amqp.Channel
 	options       jobberOptions
-	workers       *hashmap.Map
 	ctx           context.Context
 	cancle        context.CancelFunc
 	once          sync.Once
@@ -56,26 +55,13 @@ type Jobber struct {
 	closeNotifies []chan bool
 	startTime     time.Time
 	stopTime      time.Time
+	workers       chan int
 }
 
-// Start 启动 Jobber
-func (this *Jobber) Start() {
-	defer func() {
-		if err := recover(); err != nil {
-			switch err.(type) {
-			case error:
-				//atomic.StoreInt32(&this.status, -1)
-				//logrus.Errorf("Jobber: %s exits with error: %s", this.name, err.(error).Error())
-				//default:
-				//	logrus.Infof("Jobber: %s exits", this.name)
-			}
-		} else {
-			logrus.Infof("Jobber: %s exits", this.name)
-		}
-	}()
-
+func (this *Jobber) preparStart() (msg <-chan amqp.Delivery, err error) {
 	if atomic.LoadInt32(&this.status) == 1 {
 		logrus.Errorf("Jobber: %s is running.", this.name)
+		err = errors.New(fmt.Sprintf("Jobber: %s is running.", this.name))
 		return
 	}
 
@@ -83,13 +69,13 @@ func (this *Jobber) Start() {
 	this.ctx = ctx
 	this.cancle = cancle
 
-	var err error
+	// 获取一个 channel
 	this.channel, err = Connection.getChannel()
 	if err != nil {
-		logrus.Errorf("Jobber: %s start failed with error: %s", this.name, err.Error())
 		return
 	}
 
+	// 创建队列
 	_, err = this.channel.QueueDeclare(
 		this.options.Queue,
 		true,
@@ -99,11 +85,10 @@ func (this *Jobber) Start() {
 		nil,
 	)
 	if err != nil {
-		logrus.Errorf("Jobber: %s declare queue %s failed with error: %s", this.name, this.options.Queue, err.Error())
 		return
 	}
-	//logrus.Infof("Jobber %s declare queue %s success", this.name, this.options.Queue)
 
+	// 创建路由
 	err = this.channel.ExchangeDeclare(
 		this.options.Exchange.Name,
 		this.options.Exchange.Etype,
@@ -114,10 +99,10 @@ func (this *Jobber) Start() {
 		nil,
 	)
 	if err != nil {
-		logrus.Errorf("Jobber: %s declare exchange %s failed with error: %s", this.name, this.options.Exchange.Name, err.Error())
 		return
 	}
 
+	// 绑定队列到路由
 	err = this.channel.QueueBind(
 		this.options.Queue,
 		this.options.BindKey,
@@ -126,17 +111,17 @@ func (this *Jobber) Start() {
 		nil,
 	)
 	if err != nil {
-		logrus.Errorf("Jobber: %s bind queue %s to exchange %s failed with error: %s", this.name, this.options.Queue, this.options.Exchange.Name, err.Error())
 		return
 	}
 
+	// 设置 QOS
 	err = this.channel.Qos(this.options.WorkerNum, 0, false)
 	if err != nil {
-		logrus.Errorf("Jobber: %s set basic qos failed with error: %s", this.name, err.Error())
 		return
 	}
 
-	msg, err := this.channel.Consume(
+	// 订阅队列
+	msg, err = this.channel.Consume(
 		this.options.Queue,
 		this.options.Consumer,
 		false,
@@ -145,45 +130,124 @@ func (this *Jobber) Start() {
 		false,
 		nil,
 	)
-	if err != nil {
-		logrus.Errorf("Jobber: %s consume failed with error: %s", this.name, err.Error())
+
+	// 初始化工作线程池，线程池容量等于 mq.prefetchCount
+	this.workers = make(chan int, this.options.WorkerNum)
+	for i := 0; i < this.options.WorkerNum; i++ {
+		this.workers <- i
+	}
+
+	// 初始化 jobber stop 的阻塞通知池
+	this.closeNotifies = make([]chan bool, 0)
+
+	// 设置状态和开始时间
+	atomic.StoreInt32(&this.status, 1)
+	this.startTime = time.Now()
+
+	return
+}
+
+// Start 启动 Jobber
+func (this *Jobber) Start() {
+	defer func() {
+		if err := recover(); err != nil {
+			switch err.(type) {
+			case error:
+				logrus.Errorln(err)
+			}
+		} else {
+			logrus.Infof("Jobber: %s exits", this.name)
+		}
+	}()
+
+	var (
+		msg <-chan amqp.Delivery
+		err error
+	)
+
+	if msg, err = this.preparStart(); err != nil {
+		logrus.Errorln(err)
 		return
 	}
 
-	atomic.StoreInt32(&this.status, 1)
-	this.startTime = time.Now()
 	logrus.Infof("Jobber: %s started success.", this.name)
 
-	wg := new(sync.WaitGroup)
-	for i := 0; i < this.options.WorkerNum; i++ {
-		w := &worker{
-			jobber: this,
-			msg:    msg,
-			id:     i,
-			wg:     wg,
-			locker: new(sync.Mutex),
+	notify := make(chan *amqp.Error)
+	var runErr error
+BREAK:
+	for {
+		select {
+		case <-this.ctx.Done():
+			break BREAK
+		case runErr = <-this.channel.NotifyClose(notify):
+			break BREAK
+		case delivery, ok := <-msg:
+			if !ok {
+				runErr = errors.New("delivery channel has closed")
+				break BREAK
+			}
+
+			i, ok := <-this.workers
+			if !ok {
+				runErr = errors.New("workers channel has closed")
+				break BREAK
+			}
+
+			if atomic.LoadInt32(&this.status) != 1 {
+				break BREAK
+			}
+
+			go this.do(delivery, i)
 		}
-		this.workers.Put(i, w)
-		wg.Add(1)
-		go w.Run()
 	}
-	wg.Wait()
 
-	logrus.Infoln("到这了111")
-	atomic.StoreInt32(&this.status, 0)
+	// 等待所有工作线程退出
+	for i := 0; i < this.options.WorkerNum; i++ {
+		<-this.workers
+	}
+	close(this.workers)
+
+	// 根据运行中的错误情况判定，程序是正常退出还是异常退出
+	if runErr != nil {
+		atomic.StoreInt32(&this.status, -1)
+	} else {
+		atomic.StoreInt32(&this.status, 0)
+	}
 	this.stopTime = time.Now()
-	logrus.Infoln("到这了22")
 
-	logrus.Infoln("到这了333")
+	// 通知所有需要得知当前 Jobber 退出情况的监听者
 	if len(this.closeNotifies) > 0 {
 		for _, c := range this.closeNotifies {
 			close(c)
 		}
-		this.closeNotifies = []chan bool{}
 	}
 
+	if runErr != nil {
+		logrus.Errorf("Jobber: %s exits with error: %s", this.name, runErr.Error())
+	} else {
+		logrus.Infof("Jobber: %s exits.", this.name)
+	}
 	this.channel.Close()
-	logrus.Infoln("到这了444")
+}
+
+func (this *Jobber) do(msg amqp.Delivery, i int) {
+	defer func() {
+		if err := recover(); err != nil {
+			switch err.(type) {
+			case error:
+				logrus.Errorf("Jobber: %s do request has some error: %s", this.name, err.(error).Error())
+			}
+		}
+
+		msg.Ack(false)
+		this.workers <- i
+		logrus.Infof("%s[%d] do request end", this.name, i)
+	}()
+
+	logrus.Infof("%s[%d]: recv message: %s", this.name, i, string(msg.Body))
+	//n := rand.Intn(20)
+	n := 5
+	time.Sleep(time.Duration(n) * time.Second)
 }
 
 // Stop 停止，并阻塞等待停止完成
@@ -226,15 +290,15 @@ func (this *Jobber) GetQueueName() string {
 }
 
 // GetWorkers 获取所有的 workers
-func (this *Jobber) GetWorkers() []*worker {
-	wks := make([]*worker, 0)
-	vals := this.workers.Values()
-	for _, v := range vals {
-		wks = append(wks, v.(*worker))
-	}
-
-	return wks
-}
+//func (this *Jobber) GetWorkers() []*worker {
+//	wks := make([]*worker, 0)
+//	vals := this.workers.Values()
+//	for _, v := range vals {
+//		wks = append(wks, v.(*worker))
+//	}
+//
+//	return wks
+//}
 
 // GetStartTime 获取开始日期
 func (this *Jobber) GetStartTime() time.Time {
