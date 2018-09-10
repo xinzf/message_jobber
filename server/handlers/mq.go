@@ -127,3 +127,29 @@ func (this *Mq) Remove(c *gin.Context) {
 
 	this.Success(c, fmt.Sprintf("Jobber %s removed", name))
 }
+
+func (this *Mq) Restart(c *gin.Context) {
+	name := c.DefaultQuery("name", "")
+	if name == "" {
+		this.Failed(c, errno.ParamsErr.Add("name"))
+		return
+	}
+
+	var err error
+	if name == "all" {
+		err = mq.Jobbers.RestartAll()
+	} else {
+		err = mq.Jobbers.Restart(name)
+	}
+
+	if err != nil {
+		this.Failed(c, errno.InternalServerError.Add(err.Error()))
+		return
+	}
+
+	if name == "all" {
+		this.Success(c, "All restarted.")
+	} else {
+		this.Success(c, fmt.Sprintf("%s restarted", name))
+	}
+}

@@ -78,6 +78,8 @@ func (this *Interactive) Run(ctx context.Context) {
 			this.reread()
 		case UPDATE:
 			this.update()
+		case RESTART:
+			this.restart(cmd)
 		default:
 			this.response("*** Unknown syntax ***")
 		}
@@ -304,4 +306,20 @@ func (this *Interactive) update() {
 	}
 
 	this.response("Updated all success.")
+}
+
+func (this *Interactive) restart(c cmd) {
+	if len(c.data) == 0 {
+		this.response(`Error: restart requires a jobber name
+restart <name>		restart a process
+restart all		Restart all jobbers`)
+		return
+	}
+	name := c.data[0]
+	res := Get("http://127.0.0.1:9003/mq/restart?name=" + name)
+	if res.Success() == false {
+		this.response(res.Message)
+	} else {
+		this.response(res.String())
+	}
 }
