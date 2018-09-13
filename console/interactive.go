@@ -220,7 +220,7 @@ stop all		Stop all processes`)
 		return
 	}
 	name := c.data[0]
-	res := Get("http://127.0.0.1:9003/mq/stop?name=" + name)
+	res := Get("http://" + this.ServerUrl + "/mq/stop?name=" + name)
 	if res.Success() == false {
 		this.response(res.Message)
 	} else {
@@ -238,7 +238,7 @@ start all		Start all processes`)
 		return
 	}
 	name := c.data[0]
-	res := Get("http://127.0.0.1:9003/mq/start?name=" + name)
+	res := Get("http://" + this.ServerUrl + "/mq/start?name=" + name)
 	if res.Success() == false {
 		this.response(res.Message)
 	} else {
@@ -316,7 +316,7 @@ restart all		Restart all jobbers`)
 		return
 	}
 	name := c.data[0]
-	res := Get("http://127.0.0.1:9003/mq/restart?name=" + name)
+	res := Get("http://" + this.ServerUrl + "/mq/restart?name=" + name)
 	if res.Success() == false {
 		this.response(res.Message)
 	} else {
