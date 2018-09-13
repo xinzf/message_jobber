@@ -3,8 +3,9 @@ queue: goldbean.end
 exchange:
   name: order.start
   type: fanout
+  durable: true
 bindkey: goldbean.end_order.start
 consumer: xiangzhi
 workernum: 40
-url: "http://127.0.0.1:8082/index.php"
+url: "http://192.168.3.106:8888/v1/apple/upgrade?orderType=2"
 logpath: /Users/xiangzhi/Work/Go/src/gitlab.mydadao.com/marketing/logs/haoapple.log
