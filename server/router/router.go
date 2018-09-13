@@ -36,7 +36,7 @@ func Load(g *gin.Engine, mw ...gin.HandlerFunc) *gin.Engine {
 		mq.GET("/remove", mqHandler.Remove)
 		mq.GET("/reread", mqHandler.Reread)
 		mq.GET("/update", mqHandler.Update)
-		mq.GET("/restart",mqHandler.Restart)
+		mq.GET("/restart", mqHandler.Restart)
 	}
 	return g
 }

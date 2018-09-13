@@ -1,11 +1,13 @@
 package mq
 
 import (
+	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"github.com/sirupsen/logrus"
 	"github.com/streadway/amqp"
+	"io/ioutil"
+	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -22,6 +24,7 @@ type jobberOptions struct {
 	Consumer   string
 	WorkerNum  int    `yaml:"workernum"`
 	TargetUrl  string `yaml:"url"`
+	LogPath    string `yaml:"logpath"`
 	configFile struct {
 		filePath     string
 		lastModified time.Time
@@ -41,6 +44,7 @@ func NewJobber(options jobberOptions) *Jobber {
 		stopTime:      time.Now(),
 		closeNotifies: make([]chan bool, 0),
 		status:        0,
+		logger:        NewLogger(options.LogPath),
 	}
 }
 
@@ -56,15 +60,10 @@ type Jobber struct {
 	startTime     time.Time
 	stopTime      time.Time
 	workers       chan int
+	logger        *logger
 }
 
 func (this *Jobber) preparStart() (msg <-chan amqp.Delivery, err error) {
-	if atomic.LoadInt32(&this.status) == 1 {
-		logrus.Errorf("Jobber: %s is running.", this.name)
-		err = errors.New(fmt.Sprintf("Jobber: %s is running.", this.name))
-		return
-	}
-
 	ctx, cancle := context.WithCancel(context.Background())
 	this.ctx = ctx
 	this.cancle = cancle
@@ -165,12 +164,17 @@ func (this *Jobber) Start() {
 		err error
 	)
 
-	if msg, err = this.preparStart(); err != nil {
-		logrus.Errorln(err)
+	if atomic.LoadInt32(&this.status) == 1 {
+		this.logger.Warnln("Jobber is always running,can't start again.")
 		return
 	}
 
-	logrus.Infof("Jobber: %s started success.", this.name)
+	if msg, err = this.preparStart(); err != nil {
+		this.logger.Errorln(err)
+		return
+	}
+
+	this.logger.Infoln("Jobber started successful.")
 
 	notify := make(chan *amqp.Error)
 	var runErr error
@@ -223,9 +227,9 @@ BREAK:
 	}
 
 	if runErr != nil {
-		logrus.Errorf("Jobber: %s exits with error: %s", this.name, runErr.Error())
+		this.logger.Errorln("Jobber exits with error: ", runErr.Error())
 	} else {
-		logrus.Infof("Jobber: %s exits.", this.name)
+		this.logger.Infoln("Jobber exits.")
 	}
 	this.channel.Close()
 }
@@ -235,19 +239,61 @@ func (this *Jobber) do(msg amqp.Delivery, i int) {
 		if err := recover(); err != nil {
 			switch err.(type) {
 			case error:
-				logrus.Errorf("Jobber: %s do request has some error: %s", this.name, err.(error).Error())
+				this.logger.With("workerId", i).Errorln("Jobber do request has some error: ", err.(error).Error())
 			}
 		}
 
 		msg.Ack(false)
 		this.workers <- i
-		logrus.Infof("%s[%d] do request end", this.name, i)
+		//this.logger.With("workerId",i).Info("Do request end")
 	}()
 
-	logrus.Infof("%s[%d]: recv message: %s", this.name, i, string(msg.Body))
-	//n := rand.Intn(20)
-	n := 5
-	time.Sleep(time.Duration(n) * time.Second)
+	post := func(postData []byte, u string) ([]byte, int, error) {
+		httpCode := 0
+		client := &http.Client{}
+		rawData := bytes.NewBuffer(postData)
+		req, err := http.NewRequest("POST", u, rawData)
+		if err != nil {
+			return []byte(""), httpCode, err
+		}
+		req.Header.Set("Content-type", "application/json")
+
+		response, err := client.Do(req)
+		if err != nil {
+			return []byte(""), httpCode, err
+		}
+
+		this.logger.Warnln("do request")
+		if response.StatusCode != 200 {
+			httpCode = response.StatusCode
+			return []byte(""), httpCode, nil
+		}
+		defer response.Body.Close()
+
+		body, _ := ioutil.ReadAll(response.Body)
+
+		return body, response.StatusCode, nil
+	}
+
+	rsp, httpcode, err := post(msg.Body, this.options.TargetUrl)
+
+	if err != nil {
+		this.logger.WithFields(map[string]interface{}{
+			"delivery":  string(msg.Body[:]),
+			"http_code": httpcode,
+			"workerId":  i,
+			"response":  string(rsp[:]),
+			"url":       this.options.TargetUrl,
+		}).Warnln("end request")
+	} else {
+		this.logger.WithFields(map[string]interface{}{
+			"delivery":  string(msg.Body[:]),
+			"http_code": httpcode,
+			"workerId":  i,
+			"response":  string(rsp[:]),
+			"url":       this.options.TargetUrl,
+		}).Infoln("end request")
+	}
 }
 
 // Stop 停止，并阻塞等待停止完成
