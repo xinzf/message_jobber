@@ -25,7 +25,11 @@ func (this *jobberPools) init() error {
 	}
 
 	for _, o := range ops {
-		this.jobbers.Put(o.Name, NewJobber(o))
+		jb, err := NewJobber(o)
+		if err != nil {
+			return err
+		}
+		this.jobbers.Put(o.Name, jb)
 	}
 
 	return nil
@@ -215,7 +219,6 @@ func (this *jobberPools) Reread() (changeNames []string, removes []string, err e
 	return
 }
 
-// @todo 待测
 func (this *jobberPools) Update() error {
 	for _, v := range this.removed {
 		this.Remove(v)
@@ -228,7 +231,12 @@ func (this *jobberPools) Update() error {
 		if !found {
 			temp, _ = this.changed.Get(name)
 			op := temp.(jobberOptions)
-			this.jobbers.Put(name, NewJobber(op))
+			jb, err := NewJobber(op)
+			if err != nil {
+				logrus.Warnln("Jobber update failed,error: ", err)
+				continue
+			}
+			this.jobbers.Put(name, jb)
 			this.Start(name)
 		} else {
 			jb := temp.(*Jobber)

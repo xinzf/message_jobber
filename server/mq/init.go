@@ -27,14 +27,15 @@ var (
 	Connection = new(connection)
 )
 
-func Init(ctx context.Context) {
+func Init(ctx context.Context) error {
 	Options.Brokers = viper.GetStringSlice("server.rabbitmq.brokers")
 	Options.User = viper.GetString("server.rabbitmq.user")
 	Options.Pswd = viper.GetString("server.rabbitmq.pswd")
 	Options.Vhost = viper.GetString("server.rabbitmq.vhost")
 	if err := Jobbers.init(); err != nil {
-		panic(err)
-	} else {
-		go Connection.run(ctx)
+		return err
 	}
+	go Connection.run(ctx)
+
+	return nil
 }

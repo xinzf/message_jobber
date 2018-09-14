@@ -27,7 +27,10 @@ func main() {
 	}
 
 	ctx, _ := context.WithCancel(context.Background())
-	mq.Init(ctx)
+	err := mq.Init(ctx)
+	if err != nil {
+		panic(err)
+	}
 
 	g := gin.New()
 	gin.SetMode(viper.GetString("server.runmode"))

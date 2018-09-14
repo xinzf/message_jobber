@@ -1,10 +1,15 @@
 name: goldbean
-queue: goldbean.start
+queue:
+  name: goldbean.start
+  durable: false
 exchange:
   name: order.start
   type: fanout
+  durable: false
 bindkey: goldbean.start_order.start
 consumer: xiangzhi
 workernum: 40
 url: "http://127.0.0.1:8082/index.php"
-logpath: /Users/xiangzhi/Work/Go/src/gitlab.mydadao.com/marketing/logs/goldbean.log
+log:
+  path: /Users/xiangzhi/Work/Go/src/gitlab.mydadao.com/marketing/logs/goldbean.log
+  maxsize: 500

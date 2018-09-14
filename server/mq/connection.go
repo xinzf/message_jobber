@@ -20,7 +20,7 @@ type connection struct {
 }
 
 func (this *connection) connect() error {
-	logrus.Info("Tray to connect rabbitMQ server.")
+	logrus.Info("Try to connect rabbitMQ server.")
 
 	dial := func(addr string) (*amqp.Connection, error) {
 		u := fmt.Sprintf(

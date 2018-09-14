@@ -14,17 +14,24 @@ import (
 )
 
 type jobberOptions struct {
-	Name     string
-	Queue    string
-	Exchange struct {
-		Name  string
-		Etype string `yaml:"type"`
+	Name  string
+	Queue struct {
+		Name    string
+		Durable bool
 	}
-	BindKey    string `yaml:"bindkey"`
-	Consumer   string
-	WorkerNum  int    `yaml:"workernum"`
-	TargetUrl  string `yaml:"url"`
-	LogPath    string `yaml:"logpath"`
+	Exchange struct {
+		Name    string
+		Etype   string `yaml:"type"`
+		Durable bool
+	}
+	BindKey   string `yaml:"bindkey"`
+	Consumer  string
+	WorkerNum int    `yaml:"workernum"`
+	TargetUrl string `yaml:"url"`
+	Log       struct {
+		Path    string
+		Maxsize int
+	}
 	configFile struct {
 		filePath     string
 		lastModified time.Time
@@ -37,15 +44,46 @@ type jobberOptions struct {
  * fileName 配置文件名称
  * lastModified 配置文件的最后修改日期
  */
-func NewJobber(options jobberOptions) *Jobber {
+func NewJobber(options jobberOptions) (*Jobber, error) {
+	var err error
+	if options.Name == "" {
+		err = errors.New("Missing jobber's name")
+		return nil, err
+	}
+
+	if options.Queue.Name == "" {
+		err = errors.New("Missing queue's name")
+		return nil, err
+	}
+
+	if options.Exchange.Name == "" {
+		err = errors.New("Missing exchange's name")
+		return nil, err
+	}
+
+	if options.Exchange.Etype == "" {
+		err = errors.New("Missing exchange's type")
+		return nil, err
+	}
+
+	if options.Exchange.Etype != "direct" && options.Exchange.Etype != "fanout" {
+		err = errors.New("Exchange's type is not valid")
+		return nil, err
+	}
+
+	if options.Log.Path == "" {
+		err = errors.New("Missing log path")
+		return nil, err
+	}
+
 	return &Jobber{
 		name:          options.Name,
 		options:       options,
 		stopTime:      time.Now(),
 		closeNotifies: make([]chan bool, 0),
 		status:        0,
-		logger:        NewLogger(options.LogPath),
-	}
+		logger:        NewLogger(options.Log.Path, options.Log.Maxsize),
+	}, nil
 }
 
 type Jobber struct {
@@ -76,8 +114,8 @@ func (this *Jobber) preparStart() (msg <-chan amqp.Delivery, err error) {
 
 	// 创建队列
 	_, err = this.channel.QueueDeclare(
-		this.options.Queue,
-		true,
+		this.options.Queue.Name,
+		this.options.Queue.Durable,
 		false,
 		false,
 		false,
@@ -91,7 +129,7 @@ func (this *Jobber) preparStart() (msg <-chan amqp.Delivery, err error) {
 	err = this.channel.ExchangeDeclare(
 		this.options.Exchange.Name,
 		this.options.Exchange.Etype,
-		true,
+		this.options.Exchange.Durable,
 		false,
 		false,
 		false,
@@ -103,7 +141,7 @@ func (this *Jobber) preparStart() (msg <-chan amqp.Delivery, err error) {
 
 	// 绑定队列到路由
 	err = this.channel.QueueBind(
-		this.options.Queue,
+		this.options.Queue.Name,
 		this.options.BindKey,
 		this.options.Exchange.Name,
 		false,
@@ -121,7 +159,7 @@ func (this *Jobber) preparStart() (msg <-chan amqp.Delivery, err error) {
 
 	// 订阅队列
 	msg, err = this.channel.Consume(
-		this.options.Queue,
+		this.options.Queue.Name,
 		this.options.Consumer,
 		false,
 		false,
@@ -332,7 +370,7 @@ func (this *Jobber) GetName() string {
 
 // GetQueueName 获取监听的队列名称
 func (this *Jobber) GetQueueName() string {
-	return this.options.Queue
+	return this.options.Queue.Name
 }
 
 // GetWorkers 获取所有的 workers

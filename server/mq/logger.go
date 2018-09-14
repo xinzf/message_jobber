@@ -19,7 +19,7 @@ func timeEncoder(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
 	enc.AppendString(t.Format("2006-01-02 15:04:05"))
 }
 
-func NewLogger(logpath string) *logger {
+func NewLogger(logpath string, maxSize int) *logger {
 	encodeConfig := zap.NewProductionEncoderConfig()
 	encodeConfig.EncodeCaller = callerEncoder
 	encodeConfig.TimeKey = "time"
@@ -27,7 +27,7 @@ func NewLogger(logpath string) *logger {
 
 	w := zapcore.AddSync(&lumberjack.Logger{
 		Filename:   logpath,
-		MaxSize:    500, // megabytes
+		MaxSize:    maxSize, // megabytes
 		MaxBackups: 30,
 		MaxAge:     10, // days
 	})
